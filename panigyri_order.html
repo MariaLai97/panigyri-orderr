@@ -1,0 +1,226 @@
+
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Παραγγελίες Πανηγυριού</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; max-width: 500px; margin-bottom: 20px;}
+  th, td { border: 1px solid #333; padding: 8px; text-align: center; }
+  input[type=number] { width: 60px; }
+  .totals { font-weight: bold; margin-top: 20px; }
+  .change-row { margin-top: 10px; }
+  button { margin-right: 10px; }
+</style>
+</head>
+<body>
+
+<h2>Κατάλογος και Παραγγελία</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Προϊόν</th>
+      <th>Τιμή (€)</th>
+      <th>Ποσότητα</th>
+      <th>Σύνολο (€)</th>
+    </tr>
+  </thead>
+  <tbody id="productRows">
+    <!-- Θα γεμίσει με JavaScript -->
+  </tbody>
+</table>
+
+<p>
+  Πόσα χρήματα έδωσε ο πελάτης: 
+  <input type="number" id="moneyGiven" min="0" step="0.01" value="0" />
+</p>
+
+<p>Ρέστα: <span id="change">0.00</span> €</p>
+
+<button id="addOrderBtn">Πρόσθεσε στην παραγγελία</button>
+<button id="clearStorageBtn">Καθαρισμός Μνήμης</button>
+
+<div class="totals">
+  <p>Σύνολο παραγγελίας: <span id="orderTotal">0.00</span> €</p>
+</div>
+
+<hr />
+
+<h3>Συνολικά μέχρι τώρα:</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Προϊόν</th>
+      <th>Συνολική Ποσότητα πουλήθηκε</th>
+    </tr>
+  </thead>
+  <tbody id="totalSoldRows">
+    <!-- Θα γεμίσει με JavaScript -->
+  </tbody>
+</table>
+<p>Συνολικά έσοδα: <span id="totalRevenue">0.00</span> €</p>
+
+<script>
+const products = [
+  { name: "Σουβλάκι", price: 1.5 },
+  { name: "Μπύρα", price: 2.0 },
+  { name: "Ρετσίνα", price: 3.5 },
+  { name: "Αναψυκτικά", price: 1.5 },
+  { name: "Νερό", price: 0.5 }
+];
+
+// Δημιουργούμε τις γραμμές του πίνακα παραγγελίας
+function createProductRows() {
+  const tbody = document.getElementById('productRows');
+  tbody.innerHTML = '';
+
+  products.forEach((product, i) => {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.textContent = product.name;
+    tr.appendChild(tdName);
+
+    const tdPrice = document.createElement('td');
+    tdPrice.textContent = product.price.toFixed(2);
+    tr.appendChild(tdPrice);
+
+    const tdQty = document.createElement('td');
+    const inputQty = document.createElement('input');
+    inputQty.type = 'number';
+    inputQty.min = 0;
+    inputQty.value = 0;
+    inputQty.dataset.index = i;
+    inputQty.addEventListener('input', updateOrderTotal);
+    tdQty.appendChild(inputQty);
+    tr.appendChild(tdQty);
+
+    const tdTotal = document.createElement('td');
+    tdTotal.textContent = '0.00';
+    tr.appendChild(tdTotal);
+
+    tbody.appendChild(tr);
+  });
+}
+
+// Δημιουργία γραμμών για συνολικές πωλήσεις
+function createTotalSoldRows(totals) {
+  const tbody = document.getElementById('totalSoldRows');
+  tbody.innerHTML = '';
+  products.forEach((product, i) => {
+    const tr = document.createElement('tr');
+    const tdName = document.createElement('td');
+    tdName.textContent = product.name;
+    tr.appendChild(tdName);
+
+    const tdQty = document.createElement('td');
+    tdQty.textContent = totals.quantities[i] || 0;
+    tr.appendChild(tdQty);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function updateOrderTotal() {
+  const tbody = document.getElementById('productRows');
+  let orderTotal = 0;
+
+  Array.from(tbody.querySelectorAll('tr')).forEach((tr, i) => {
+    const qtyInput = tr.querySelector('input[type="number"]');
+    const qty = Number(qtyInput.value) || 0;
+    const price = products[i].price;
+    const productTotal = qty * price;
+
+    tr.cells[3].textContent = productTotal.toFixed(2);
+    orderTotal += productTotal;
+  });
+
+  document.getElementById('orderTotal').textContent = orderTotal.toFixed(2);
+
+  // Υπολογίζουμε ρέστα αν έχει δοθεί ποσό
+  const moneyGiven = parseFloat(document.getElementById('moneyGiven').value) || 0;
+  const change = moneyGiven - orderTotal;
+  document.getElementById('change').textContent = change >= 0 ? change.toFixed(2) : '0.00';
+}
+
+// Αποθήκευση συνολικών πωλήσεων και εσόδων
+function saveTotals(totals) {
+  localStorage.setItem('totalQuantities', JSON.stringify(totals.quantities));
+  localStorage.setItem('totalRevenue', totals.revenue);
+}
+
+// Φόρτωση συνολικών πωλήσεων και εσόδων
+function loadTotals() {
+  const quantities = JSON.parse(localStorage.getItem('totalQuantities')) || Array(products.length).fill(0);
+  const revenue = parseFloat(localStorage.getItem('totalRevenue')) || 0;
+  return { quantities, revenue };
+}
+
+// Όταν πατάμε το κουμπί "Πρόσθεσε στην παραγγελία"
+document.getElementById('addOrderBtn').addEventListener('click', () => {
+  const tbody = document.getElementById('productRows');
+
+  let orderQuantity = 0;
+  let orderRevenue = 0;
+
+  const currentTotals = loadTotals();
+
+  Array.from(tbody.querySelectorAll('tr')).forEach((tr, i) => {
+    const qty = Number(tr.querySelector('input[type="number"]').value) || 0;
+    const price = products[i].price;
+
+    orderQuantity += qty;
+    orderRevenue += qty * price;
+
+    currentTotals.quantities[i] += qty;
+
+    // Μηδενίζουμε πεδία για νέα παραγγελία
+    tr.querySelector('input[type="number"]').value = 0;
+    tr.cells[3].textContent = '0.00';
+  });
+
+  document.getElementById('orderTotal').textContent = '0.00';
+  document.getElementById('moneyGiven').value = 0;
+  document.getElementById('change').textContent = '0.00';
+
+  currentTotals.revenue += orderRevenue;
+
+  // Αποθηκεύουμε νέα συνολικά
+  saveTotals(currentTotals);
+
+  // Ενημερώνουμε UI
+  createTotalSoldRows(currentTotals);
+  document.getElementById('totalRevenue').textContent = currentTotals.revenue.toFixed(2);
+});
+
+// Όταν αλλάζει το ποσό που δίνει ο πελάτης, ενημερώνουμε τα ρέστα
+document.getElementById('moneyGiven').addEventListener('input', updateOrderTotal);
+
+// Κουμπί Καθαρισμού Μνήμης
+document.getElementById('clearStorageBtn').addEventListener('click', () => {
+  if (confirm('Θέλεις να καθαρίσεις τα συνολικά και να ξεκινήσεις από την αρχή;')) {
+    localStorage.removeItem('totalQuantities');
+    localStorage.removeItem('totalRevenue');
+
+    // Ενημερώνουμε UI
+    const zeroTotals = { quantities: Array(products.length).fill(0), revenue: 0 };
+    createTotalSoldRows(zeroTotals);
+    document.getElementById('totalRevenue').textContent = '0.00';
+  }
+});
+
+// Φορτώνουμε την αρχική κατάσταση όταν ανοίγει η σελίδα
+window.onload = () => {
+  createProductRows();
+  const totals = loadTotals();
+  createTotalSoldRows(totals);
+  document.getElementById('totalRevenue').textContent = totals.revenue.toFixed(2);
+  updateOrderTotal();
+};
+</script>
+
+</body>
+</html>
